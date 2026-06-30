@@ -1,0 +1,16 @@
+name: Process Scheduled SMM Orders
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call processing endpoint
+        run: |
+          curl -X POST https://REPLACE_WITH_YOUR_PRODUCTION_DOMAIN/api/cron/process-orders \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -f
