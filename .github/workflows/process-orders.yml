@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Call processing endpoint
         run: |
-          curl -X POST https://REPLACE_WITH_YOUR_PRODUCTION_DOMAIN/api/cron/process-orders \
+          curl -X POST https://elite-clippers.vercel.app/api/cron/process-orders \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -f
