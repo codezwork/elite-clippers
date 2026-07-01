@@ -270,7 +270,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, updates });
 
   } catch (error: any) {
-    console.error('Refresh stats error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Scrape error:', error);
+    return NextResponse.json({ error: 'Failed to refresh data', details: error.message }, { status: 500 });
   }
 }

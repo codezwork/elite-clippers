@@ -131,6 +131,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('Process scheduled orders error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
   }
 }
