@@ -11,6 +11,7 @@ export interface VideoDocument {
   likes: number;
   addedAt: Date;
   lastUpdated: Date;
+  cpm?: number;
 }
 
 export async function addVideo(uid: string, video: Omit<VideoDocument, 'id' | 'views' | 'likes' | 'addedAt' | 'lastUpdated'>) {
@@ -52,6 +53,15 @@ export async function deleteVideos(uid: string, clipIds: string[]) {
     
     // Delete the video itself
     batch.delete(videoRef);
+  }
+  await batch.commit();
+}
+
+export async function setBatchCPM(uid: string, clipIds: string[], cpm: number) {
+  const batch = writeBatch(db);
+  for (const clipId of clipIds) {
+    const videoRef = doc(db, 'users', uid, 'videos', clipId);
+    batch.update(videoRef, { cpm });
   }
   await batch.commit();
 }
