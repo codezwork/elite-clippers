@@ -37,8 +37,8 @@ export default function ClipDetailPage() {
     }
   };
 
-  const handleRefreshOrderStatus = async (orderId: string, providerId: string, smmOrderId: string) => {
-    if (!user || !clip?.id) return;
+  const handleRefreshOrderStatus = async (orderId?: string, providerId?: string, smmOrderId?: string) => {
+    if (!user || !clip?.id || !orderId || !providerId || !smmOrderId) return;
     setRefreshingOrders(prev => ({ ...prev, [orderId]: true }));
     try {
       const idToken = await user.getIdToken();
