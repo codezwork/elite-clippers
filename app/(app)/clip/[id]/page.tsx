@@ -15,6 +15,7 @@ export default function ClipDetailPage() {
   const [orders, setOrders] = useState<OrderDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingOrders, setRefreshingOrders] = useState<Record<string, boolean>>({});
 
   const handleRefreshStats = async () => {
     if (!user || !clip?.id) return;
@@ -33,6 +34,26 @@ export default function ClipDetailPage() {
       console.error(e);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleRefreshOrderStatus = async (orderId: string, providerId: string, smmOrderId: string) => {
+    if (!user || !clip?.id) return;
+    setRefreshingOrders(prev => ({ ...prev, [orderId]: true }));
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/smm/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+        body: JSON.stringify({ clipId: clip.id, orderId, providerId, smmOrderId })
+      });
+      if (res.ok) {
+        await fetchClipAndOrders(); // Re-fetch to show new status
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setRefreshingOrders(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
@@ -161,9 +182,31 @@ export default function ClipDetailPage() {
                   <p className="text-xs text-white/40 mt-1">{order.providerName} &bull; Order ID: {order.smmOrderId}</p>
                 </div>
                 <div className="text-right flex flex-col items-end">
-                  <span className="inline-flex items-center justify-center px-2 py-1 rounded-md bg-[#F39C12]/20 text-[#F39C12] text-[9px] font-bold uppercase tracking-widest border border-[#F39C12]/20">
-                    {order.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleRefreshOrderStatus(order.id, order.providerId, order.smmOrderId)}
+                      disabled={refreshingOrders[order.id]}
+                      className="text-white/40 hover:text-white/80 transition-colors disabled:opacity-50"
+                      title="Check latest status"
+                    >
+                      <svg className={`w-3.5 h-3.5 ${refreshingOrders[order.id] ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                    <span className={`inline-flex items-center justify-center px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest border ${
+                      order.status.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-400 border-green-500/20' :
+                      order.status.toLowerCase() === 'canceled' || order.status.toLowerCase() === 'failed' ? 'bg-red-500/20 text-red-400 border-red-500/20' :
+                      order.status.toLowerCase() === 'in progress' || order.status.toLowerCase() === 'processing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/20' :
+                      'bg-[#F39C12]/20 text-[#F39C12] border-[#F39C12]/20'
+                    }`}>
+                      {order.status}
+                    </span>
+                  </div>
+                  {((order as any).startCount !== undefined || (order as any).remains !== undefined) && (
+                    <p className="text-[10px] text-white/40 mt-1">
+                      Start: {(order as any).startCount ?? '-'} &bull; Remains: {(order as any).remains ?? '-'}
+                    </p>
+                  )}
                   <p className="text-[10px] text-white/30 mt-2">
                     {order.timestamp?.toDate ? order.timestamp.toDate().toLocaleDateString() : 'Just now'}
                   </p>
