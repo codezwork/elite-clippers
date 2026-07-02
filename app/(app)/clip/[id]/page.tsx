@@ -185,11 +185,11 @@ export default function ClipDetailPage() {
                   <div className="flex items-center gap-2">
                     <button 
                       onClick={() => handleRefreshOrderStatus(order.id, order.providerId, order.smmOrderId)}
-                      disabled={refreshingOrders[order.id]}
+                      disabled={order.id ? refreshingOrders[order.id] : false}
                       className="text-white/40 hover:text-white/80 transition-colors disabled:opacity-50"
                       title="Check latest status"
                     >
-                      <svg className={`w-3.5 h-3.5 ${refreshingOrders[order.id] ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className={`w-3.5 h-3.5 ${order.id && refreshingOrders[order.id] ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                     </button>
