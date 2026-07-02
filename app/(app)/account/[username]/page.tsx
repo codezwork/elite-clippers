@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState, useRef } from 'react';
 import { getUserVideos, VideoDocument, deleteVideos } from '@/lib/firestore';
 import { useParams, useRouter } from 'next/navigation';
+import Toast from '@/components/Toast';
 
 export default function AccountContentGridPage() {
   const params = useParams();
@@ -19,6 +20,8 @@ export default function AccountContentGridPage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [syncing, setSyncing] = useState(false);
   
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -55,6 +58,37 @@ export default function AccountContentGridPage() {
   useEffect(() => {
     fetchVideos();
   }, [user, username, decodedUsername]);
+
+  const handleSync = async () => {
+    if (!user) return;
+    setSyncing(true);
+    try {
+      const idToken = await user.getIdToken();
+      
+      const res = await fetch('/api/profile/sync', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ platform: 'tiktok', username: username }),
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setToastMessage(data.newCount > 0 ? `${data.newCount} new clips added` : 'Already up to date');
+        if (data.newCount > 0) fetchVideos();
+      } else if (data.error === 'SYNC_UNAVAILABLE') {
+        setToastMessage('Account sync is temporarily unavailable. You can still add videos individually.');
+      } else {
+        setToastMessage(data.error || 'Sync failed');
+      }
+    } catch (e) {
+      setToastMessage('Account sync is temporarily unavailable. You can still add videos individually.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handlePointerDown = (id: string) => {
     if (isSelectionMode) return;
@@ -126,21 +160,39 @@ export default function AccountContentGridPage() {
         
         <div className="flex gap-2">
           <button 
+            onClick={handleSync}
+            disabled={syncing || isSelectionMode}
+            className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {syncing ? (
+              <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            )}
+            <span className="hidden md:inline">{syncing ? 'Syncing...' : 'Sync Latest'}</span>
+          </button>
+          
+          <button 
             onClick={handleRefreshAll}
             disabled={refreshing || videos.length === 0 || isSelectionMode}
             className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {refreshing ? (
-              <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
             ) : (
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             )}
-            Refresh All
+            <span className="hidden md:inline">Refresh All</span>
           </button>
         </div>
       </div>
@@ -225,6 +277,8 @@ export default function AccountContentGridPage() {
           </button>
         </div>
       </div>
+
+      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
     </div>
   );
 }

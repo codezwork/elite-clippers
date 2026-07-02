@@ -1,6 +1,7 @@
 export type Platform = 'tiktok' | 'instagram' | 'youtube' | 'twitter';
 
 export interface ParsedUrl {
+  type?: 'video' | 'profile';
   platform: Platform | null;
   accountUsername: string | null;
   videoId: string | null;
@@ -9,6 +10,7 @@ export interface ParsedUrl {
 }
 
 export function parseVideoUrl(url: string): ParsedUrl {
+  let type: 'video' | 'profile' | undefined = undefined;
   let platform: Platform | null = null;
   let accountUsername: string | null = null;
   let videoId: string | null = null;
@@ -21,11 +23,16 @@ export function parseVideoUrl(url: string): ParsedUrl {
 
     if (hostname.includes('tiktok.com')) {
       platform = 'tiktok';
-      // format: /@username/video/12345
+      // Check for video first: format: /@username/video/12345
       const parts = pathname.split('/').filter(Boolean);
       if (parts.length >= 3 && parts[0].startsWith('@') && parts[1] === 'video') {
+        type = 'video';
         accountUsername = parts[0];
         videoId = parts[2];
+      } else if (parts.length === 1 && parts[0].startsWith('@')) {
+        // Profile link: format: /@username
+        type = 'profile';
+        accountUsername = parts[0];
       }
     } else if (hostname.includes('instagram.com')) {
       platform = 'instagram';
@@ -66,10 +73,11 @@ export function parseVideoUrl(url: string): ParsedUrl {
   }
 
   return {
+    type,
     platform,
     accountUsername,
     videoId,
     thumbnailUrl,
-    isValid: !!platform && !!videoId,
+    isValid: !!platform && (!!videoId || type === 'profile'),
   };
 }
