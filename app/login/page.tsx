@@ -33,13 +33,11 @@ export default function LoginPage() {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-900/10 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="relative z-10 w-full max-w-md p-8 sm:p-10 mx-4 rounded-3xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl flex flex-col items-center">
-        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-[#C0392B] to-red-500 flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(192,57,43,0.5)]">
-          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+        <div className="w-24 h-24 rounded-2xl bg-black/40 flex items-center justify-center mb-6 overflow-hidden border border-white/5 shadow-2xl">
+          <img src="/elite-logo.png" alt="Elite Mamba Logo" className="w-full h-full object-contain p-2" />
         </div>
         
-        <h1 className="text-3xl font-bold mb-3 tracking-tight">Elite Mamba</h1>
+        <h1 className="text-3xl font-bold mb-3 tracking-tight">Elite Clipper</h1>
         <p className="text-white/60 mb-10 text-center leading-relaxed">Your personal content intelligence & SMM dashboard.</p>
         
         <button
