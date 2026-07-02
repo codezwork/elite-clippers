@@ -4,12 +4,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AddLinkModal from './AddLinkModal';
+import AccountModal from './AccountModal';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -35,7 +37,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <span className="font-bold text-lg tracking-tight">Elite Mamba</span>
         </div>
-        <div className="relative group cursor-pointer">
+        <div className="relative group cursor-pointer" onClick={() => setIsAccountModalOpen(true)}>
           <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=random`} alt="Avatar" className="w-9 h-9 rounded-full border-2 border-white/10 object-cover" />
         </div>
       </header>
@@ -81,6 +83,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
       
       <AddLinkModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <AccountModal isOpen={isAccountModalOpen} onClose={() => setIsAccountModalOpen(false)} />
     </div>
   );
 }
