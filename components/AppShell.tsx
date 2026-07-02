@@ -21,8 +21,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-4 border-[#C0392B] border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0a0a0a] relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#C0392B]/10 blur-[80px] rounded-full pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in-95 duration-700">
+          <div className="w-20 h-20 mb-6">
+            <img src="/elite-logo.png" alt="Elite Clipper" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(192,57,43,0.5)]" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight mb-8">Elite Clipper</h1>
+          
+          <div className="flex gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#C0392B] animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-[#C0392B] animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 rounded-full bg-[#C0392B] animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -35,7 +49,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden bg-transparent">
             <img src="/elite-logo.png" alt="Elite Mamba Logo" className="w-full h-full object-contain" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Elite Mamba</span>
+          <span className="font-bold text-lg tracking-tight">Elite Clipper</span>
         </div>
         <div className="relative group cursor-pointer" onClick={() => setIsAccountModalOpen(true)}>
           <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=random`} alt="Avatar" className="w-9 h-9 rounded-full border-2 border-white/10 object-cover" />

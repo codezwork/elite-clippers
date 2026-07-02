@@ -92,7 +92,7 @@ export default function AccountModal({ isOpen, onClose }: { isOpen: boolean; onC
                     </svg>
                   </div>
                   <div className="text-left flex-1">
-                    <p className="font-semibold text-sm text-blue-300">Install Elite Mamba</p>
+                    <p className="font-semibold text-sm text-blue-300">Install Elite Clipper</p>
                     <p className="text-[10px] text-blue-400/60 mt-0.5">Add to your home screen</p>
                   </div>
                 </button>

@@ -37,7 +37,7 @@ export default function LoginPage() {
           <img src="/elite-logo.png" alt="Elite Mamba Logo" className="w-full h-full object-contain p-2" />
         </div>
         
-        <h1 className="text-3xl font-bold mb-3 tracking-tight">Elite Mamba</h1>
+        <h1 className="text-3xl font-bold mb-3 tracking-tight">Elite Clipper</h1>
         <p className="text-white/60 mb-10 text-center leading-relaxed">Your personal content intelligence & SMM dashboard.</p>
         
         <button

@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Elite Mamba Clippers v2",
+  title: "Elite Clipper v2",
   description: "Personal content intelligence dashboard",
   manifest: "/manifest.json",
   icons: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Elite Mamba",
+    title: "Elite Clipper",
   },
 };
 
