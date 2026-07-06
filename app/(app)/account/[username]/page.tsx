@@ -1,7 +1,7 @@
 'use client';
 import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState, useRef } from 'react';
-import { getUserVideos, VideoDocument, deleteVideos } from '@/lib/firestore';
+import { getUserVideos, VideoDocument, deleteVideos, getAccount, AccountDocument } from '@/lib/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import Toast from '@/components/Toast';
 
@@ -15,6 +15,8 @@ export default function AccountContentGridPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [videos, setVideos] = useState<VideoDocument[]>([]);
+  const [accountDoc, setAccountDoc] = useState<AccountDocument | null>(null);
+  const [lastVisitedClipId, setLastVisitedClipId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -25,13 +27,29 @@ export default function AccountContentGridPage() {
   
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    setLastVisitedClipId(sessionStorage.getItem('lastVisitedClipId'));
+  }, []);
+
   const fetchVideos = async () => {
     if (!user) return;
     const v = await getUserVideos(user.uid);
-    setVideos(v.filter(vid => 
+    const platformVideos = v.filter(vid => 
       vid.accountUsername === username || 
       vid.accountUsername === decodedUsername
-    ));
+    );
+    setVideos(platformVideos);
+    
+    if (platformVideos.length > 0) {
+      const platform = platformVideos[0].platform;
+      const accDoc = await getAccount(user.uid, platform, platformVideos[0].accountUsername);
+      setAccountDoc(accDoc);
+    } else {
+      // try to infer from tikwm if empty or just wait
+      const accDoc = await getAccount(user.uid, 'tiktok', username);
+      if (accDoc) setAccountDoc(accDoc);
+    }
+    
     setLoading(false);
   };
 
@@ -113,6 +131,7 @@ export default function AccountContentGridPage() {
       else next.add(id);
       setSelectedIds(next);
     } else {
+      sessionStorage.setItem('lastVisitedClipId', id);
       router.push(`/clip/${id}`);
     }
   };
@@ -145,55 +164,66 @@ export default function AccountContentGridPage() {
 
   return (
     <div className="pt-4 pb-24 relative min-h-screen">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors">
+      <div className="flex items-start justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-full transition-colors shrink-0">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">{username}</h1>
-            <p className="text-white/40 text-xs">{videos.length} clips</p>
-          </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <button 
-            onClick={handleSync}
-            disabled={syncing || isSelectionMode}
-            className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {syncing ? (
-              <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            )}
-            <span className="hidden md:inline">{syncing ? 'Syncing...' : 'Sync Latest'}</span>
-          </button>
           
-          <button 
-            onClick={handleRefreshAll}
-            disabled={refreshing || videos.length === 0 || isSelectionMode}
-            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {refreshing ? (
-              <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+          <div className="w-16 h-16 rounded-full bg-white/10 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+            {accountDoc?.profilePictureUrl ? (
+              <img src={accountDoc.profilePictureUrl} alt={username} className="w-full h-full object-cover" />
             ) : (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <span className="text-2xl font-bold text-white/50">{username.charAt(username.startsWith('@') ? 1 : 0).toUpperCase()}</span>
             )}
-            <span className="hidden md:inline">Refresh All</span>
-          </button>
+          </div>
+
+          <div className="flex flex-col justify-center gap-1.5">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight leading-none">{username}</h1>
+              
+            </div>
+            
+            <div className="flex gap-2 mt-1">
+              <button 
+                onClick={handleSync}
+                disabled={syncing || isSelectionMode}
+                className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {syncing ? (
+                  <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                <span className="hidden md:inline">{syncing ? 'Syncing...' : 'Sync Latest'}</span>
+              </button>
+              
+              <button 
+                onClick={handleRefreshAll}
+                disabled={refreshing || videos.length === 0 || isSelectionMode}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-semibold text-white/80 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {refreshing ? (
+                  <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+                <span className="hidden md:inline">Refresh All</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -228,9 +258,18 @@ export default function AccountContentGridPage() {
                 {video.likes}
               </div>
 
+              {/* Just Visited Banner */}
+              {lastVisitedClipId === video.id && !isSelectionMode && (
+                <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center pointer-events-none transition-opacity duration-300">
+                  <span className="text-white font-semibold text-xs bg-black/60 px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md shadow-lg">
+                    Just Visited
+                  </span>
+                </div>
+              )}
+
               {/* Selection overlay */}
               {isSelectionMode && (
-                <div className={`absolute inset-0 transition-colors duration-200 ${isSelected ? 'bg-blue-500/20' : 'bg-black/40'}`}>
+                <div className={`absolute inset-0 transition-colors duration-200 z-20 ${isSelected ? 'bg-blue-500/20' : 'bg-black/40'}`}>
                   <div className={`absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors duration-200 ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-white/50 bg-black/30'}`}>
                     {isSelected && (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
