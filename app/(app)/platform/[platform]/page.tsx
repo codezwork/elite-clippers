@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useEffect, useState } from 'react';
 import { getUserVideos, VideoDocument, getAccountPreferences, setAccountPreferences, getAccount, AccountDocument } from '@/lib/firestore';
 import { useParams, useRouter } from 'next/navigation';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -53,7 +53,7 @@ function SortableAccountRow({ account, videos, accountDoc, onClick }: SortableAc
         <div 
           {...attributes} 
           {...listeners} 
-          className="w-10 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/5"
+          className="w-10 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/5 touch-none select-none"
           onClick={(e) => e.stopPropagation()} // prevent row click
         >
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,7 +76,8 @@ export default function PlatformAccountsPage() {
   const [loading, setLoading] = useState(true);
   
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), // requires 5px drag to start
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), // requires 5px drag to start for mouse
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }), // requires 250ms hold for touch
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
