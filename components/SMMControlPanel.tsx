@@ -21,7 +21,8 @@ export default function SMMControlPanel({
   const [providers, setProviders] = useState<ProviderDocument[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [action, setAction] = useState<'views' | 'likes'>('views');
-  const [quantity, setQuantity] = useState<number>(300);
+  const [quantity, setQuantity] = useState<number>(100);
+  const [viewQuantities, setViewQuantities] = useState<number[]>([100, 300, 500]);
   const [customQty, setCustomQty] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,38 @@ export default function SMMControlPanel({
       });
     }
   }, [user]);
+
+  // Load custom view quantities from local storage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('smmViewQuantities');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 3) {
+          setViewQuantities(parsed);
+          setQuantity(prev => {
+            if ([100, 300, 500].includes(prev)) return parsed[0];
+            return prev;
+          });
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleRefreshQuantities = () => {
+    const randomBetween = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const newQuantities = [
+      randomBetween(100, 150),
+      randomBetween(250, 350),
+      randomBetween(450, 600)
+    ];
+    setViewQuantities(newQuantities);
+    localStorage.setItem('smmViewQuantities', JSON.stringify(newQuantities));
+    
+    if (!customQty) {
+      setQuantity(newQuantities[0]);
+    }
+  };
 
   // Listen to scheduled master orders
   useEffect(() => {
@@ -198,7 +231,7 @@ export default function SMMControlPanel({
               <button 
                 onClick={() => { 
                   setAction('views'); 
-                  if (!customQty && [10, 30, 50].includes(quantity)) setQuantity(300); 
+                  if (!customQty && [10, 30, 50].includes(quantity)) setQuantity(viewQuantities[0]); 
                 }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${action === 'views' ? 'bg-[#C0392B] text-white shadow-md' : 'text-white/40 hover:text-white'}`}
               >
@@ -207,7 +240,7 @@ export default function SMMControlPanel({
               <button 
                 onClick={() => { 
                   setAction('likes'); 
-                  if (!customQty && [300, 500, 1000].includes(quantity)) setQuantity(10); 
+                  if (!customQty && viewQuantities.includes(quantity)) setQuantity(10); 
                 }}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${action === 'likes' ? 'bg-[#C0392B] text-white shadow-md' : 'text-white/40 hover:text-white'}`}
               >
@@ -217,9 +250,22 @@ export default function SMMControlPanel({
           </div>
 
           <div>
-            <label className="text-xs text-white/50 uppercase tracking-wider mb-2 block">Quantity</label>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="text-xs text-white/50 uppercase tracking-wider block m-0">Quantity</label>
+              {action === 'views' && (
+                <button 
+                  onClick={handleRefreshQuantities}
+                  className="p-1 hover:bg-white/10 rounded-full transition-colors text-white/50 hover:text-white"
+                  title="Randomize View Quantities"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2 mb-2">
-              {(action === 'views' ? [300, 500, 1000] : [10, 30, 50]).map(qty => (
+              {(action === 'views' ? viewQuantities : [10, 30, 50]).map(qty => (
                 <button
                   key={qty}
                   onClick={() => { setQuantity(qty); setCustomQty(''); }}
