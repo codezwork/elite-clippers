@@ -70,6 +70,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let profilePictureUrl = null;
+    try {
+      const userInfoRes = await fetch(
+        `https://www.tikwm.com/api/user/info?unique_id=${tikwmUsername}`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible)',
+            'Accept': 'application/json',
+          },
+        }
+      );
+      if (userInfoRes.ok) {
+        const userInfoData = await userInfoRes.json();
+        if (userInfoData.code === 0 && userInfoData.data?.user?.avatarMedium) {
+          profilePictureUrl = userInfoData.data.user.avatarMedium;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch user info', e);
+    }
+
+    // Upsert account document
+    try {
+      await adminDb.collection('users').doc(uid).collection('accounts').doc(`${platform}_${username}`).set({
+        platform,
+        username,
+        profilePictureUrl,
+        lastUpdated: new Date()
+      }, { merge: true });
+    } catch (e) {
+      console.error('Failed to save account info', e);
+    }
+
     if (videoList.length === 0) {
       return NextResponse.json({ newCount: 0, message: 'No videos found on this profile' });
     }

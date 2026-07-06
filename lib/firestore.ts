@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, doc, setDoc, getDocs, query, orderBy, Timestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, writeBatch } from 'firebase/firestore';
 
 export interface VideoDocument {
   id?: string;
@@ -12,6 +12,18 @@ export interface VideoDocument {
   addedAt: Date;
   lastUpdated: Date;
   cpm?: number;
+}
+
+export interface AccountPreferences {
+  accountOrder: string[];
+}
+
+export interface AccountDocument {
+  id?: string;
+  platform: string;
+  username: string;
+  profilePictureUrl: string | null;
+  lastUpdated: Date;
 }
 
 export async function addVideo(uid: string, video: Omit<VideoDocument, 'id' | 'views' | 'likes' | 'addedAt' | 'lastUpdated'>) {
@@ -65,3 +77,33 @@ export async function setBatchCPM(uid: string, clipIds: string[], cpm: number) {
   }
   await batch.commit();
 }
+
+export async function getAccountPreferences(uid: string, platform: string): Promise<string[]> {
+  const prefRef = doc(db, 'users', uid, 'preferences', platform);
+  const snap = await getDoc(prefRef);
+  if (snap.exists()) {
+    const data = snap.data() as AccountPreferences;
+    return data.accountOrder || [];
+  }
+  return [];
+}
+
+export async function setAccountPreferences(uid: string, platform: string, accountOrder: string[]) {
+  const prefRef = doc(db, 'users', uid, 'preferences', platform);
+  await setDoc(prefRef, { accountOrder }, { merge: true });
+}
+
+export async function getAccount(uid: string, platform: string, username: string): Promise<AccountDocument | null> {
+  const accountRef = doc(db, 'users', uid, 'accounts', `${platform}_${username}`);
+  const snap = await getDoc(accountRef);
+  if (snap.exists()) {
+    const data = snap.data();
+    return {
+      id: snap.id,
+      ...data,
+      lastUpdated: data.lastUpdated?.toDate(),
+    } as AccountDocument;
+  }
+  return null;
+}
+
