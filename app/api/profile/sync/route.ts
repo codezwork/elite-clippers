@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // Tikwm usually expects username without @ or properly encoded
     const tikwmUsername = username.slice(1);
 
-    // 1. Fetch video list from Tikwm public API
+    // 1. Fetch video list from Tikwm public API (Primary) or RapidAPI (Fallback)
     let videoList: any[] = [];
     try {
       const tikwmRes = await fetch(
@@ -44,15 +44,9 @@ export async function POST(req: NextRequest) {
         }
       );
 
-      if (!tikwmRes.ok) {
-        throw new Error('Tikwm returned non-200 status');
-      }
-
+      if (!tikwmRes.ok) throw new Error('Tikwm returned non-200 status');
       const tikwmData = await tikwmRes.json();
-
-      if (tikwmData.code !== 0 || !tikwmData.data?.videos) {
-        throw new Error('Tikwm response did not contain video data');
-      }
+      if (tikwmData.code !== 0 || !tikwmData.data?.videos) throw new Error('Tikwm response did not contain video data');
 
       videoList = tikwmData.data.videos.map((v: any) => ({
         videoId: String(v.video_id),
@@ -63,11 +57,40 @@ export async function POST(req: NextRequest) {
       }));
 
     } catch (tikwmError) {
-      console.error('Tikwm fetch failed:', tikwmError);
-      return NextResponse.json(
-        { error: 'SYNC_UNAVAILABLE' },
-        { status: 503 }
-      );
+      console.warn('Tikwm user/posts fetch failed:', tikwmError);
+      
+      // Fallback to RapidAPI
+      try {
+        const rapidRes = await fetch(
+          `https://tiktok-video-no-watermark2.p.rapidapi.com/user/posts?unique_id=${tikwmUsername}&count=30`,
+          {
+            headers: {
+              'x-rapidapi-key': process.env.RAPIDAPI_KEY || '6c57a260d4mshaea891895b41d1ep188775jsnc7d9a2a37ec0',
+              'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (!rapidRes.ok) throw new Error('RapidAPI returned non-200 status');
+        const rapidData = await rapidRes.json();
+        if (rapidData.code !== 0 || !rapidData.data?.videos) throw new Error('RapidAPI response did not contain video data');
+
+        videoList = rapidData.data.videos.map((v: any) => ({
+          videoId: String(v.video_id),
+          thumbnailUrl: v.cover || '',
+          views: v.play_count || 0,
+          likes: v.digg_count || 0,
+          link: `https://www.tiktok.com/${username}/video/${v.video_id}`,
+        }));
+
+      } catch (rapidError) {
+        console.error('RapidAPI user/posts fetch failed:', rapidError);
+        return NextResponse.json(
+          { error: 'SYNC_UNAVAILABLE' },
+          { status: 503 }
+        );
+      }
     }
 
     let profilePictureUrl = null;
@@ -81,14 +104,35 @@ export async function POST(req: NextRequest) {
           },
         }
       );
-      if (userInfoRes.ok) {
-        const userInfoData = await userInfoRes.json();
-        if (userInfoData.code === 0 && userInfoData.data?.user?.avatarMedium) {
-          profilePictureUrl = userInfoData.data.user.avatarMedium;
-        }
+      if (!userInfoRes.ok) throw new Error('TikWM info non-200');
+      const userInfoData = await userInfoRes.json();
+      if (userInfoData.code === 0 && userInfoData.data?.user?.avatarMedium) {
+        profilePictureUrl = userInfoData.data.user.avatarMedium;
+      } else {
+         throw new Error('TikWM info invalid');
       }
-    } catch (e) {
-      console.error('Failed to fetch user info', e);
+    } catch (tikwmInfoError) {
+      console.warn('TikWM user/info fetch failed:', tikwmInfoError);
+      try {
+        const rapidInfoRes = await fetch(
+          `https://tiktok-video-no-watermark2.p.rapidapi.com/user/info?unique_id=${tikwmUsername}`,
+          {
+            headers: {
+              'x-rapidapi-key': process.env.RAPIDAPI_KEY || '6c57a260d4mshaea891895b41d1ep188775jsnc7d9a2a37ec0',
+              'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        if (rapidInfoRes.ok) {
+          const rapidInfoData = await rapidInfoRes.json();
+          if (rapidInfoData.code === 0 && rapidInfoData.data?.user?.avatarMedium) {
+            profilePictureUrl = rapidInfoData.data.user.avatarMedium;
+          }
+        }
+      } catch (rapidInfoError) {
+        console.error('RapidAPI user/info fetch failed:', rapidInfoError);
+      }
     }
 
     // Upsert account document

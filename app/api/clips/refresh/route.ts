@@ -3,6 +3,66 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import * as cheerio from 'cheerio';
 import { FieldValue } from 'firebase-admin/firestore';
 
+async function fetchFromTikWM(url: string) {
+  const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' }
+  });
+  
+  if (!res.ok) throw new Error(`TikWM returned ${res.status}`);
+  
+  const data = await res.json();
+  if (data.code !== 0 || !data.data) {
+    throw new Error('TikWM returned empty data object');
+  }
+
+  return {
+    views: parseInt(data.data.play_count) || 0,
+    likes: parseInt(data.data.digg_count) || 0,
+  };
+}
+
+async function fetchFromRapidAPI(url: string) {
+  const res = await fetch(`https://tiktok-video-no-watermark2.p.rapidapi.com/?url=${encodeURIComponent(url)}&hd=1`, {
+    headers: {
+      'x-rapidapi-key': process.env.RAPIDAPI_KEY || '6c57a260d4mshaea891895b41d1ep188775jsnc7d9a2a37ec0',
+      'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!res.ok) throw new Error(`RapidAPI returned ${res.status}`);
+
+  const data = await res.json();
+  
+  let views = 0;
+  let likes = 0;
+
+  const searchForStats = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return;
+    
+    if (obj.play_count !== undefined) views = typeof obj.play_count === 'string' ? parseKMB(obj.play_count) : obj.play_count;
+    else if (obj.playCount !== undefined) views = typeof obj.playCount === 'string' ? parseKMB(obj.playCount) : obj.playCount;
+    
+    if (obj.digg_count !== undefined) likes = typeof obj.digg_count === 'string' ? parseKMB(obj.digg_count) : obj.digg_count;
+    else if (obj.diggCount !== undefined) likes = typeof obj.diggCount === 'string' ? parseKMB(obj.diggCount) : obj.diggCount;
+    else if (obj.like_count !== undefined) likes = typeof obj.like_count === 'string' ? parseKMB(obj.like_count) : obj.like_count;
+
+    if (views > 0 && likes > 0) return;
+    
+    for (const key of Object.keys(obj)) {
+      searchForStats(obj[key]);
+    }
+  };
+  
+  searchForStats(data);
+  
+  if (views === 0 && likes === 0) {
+    throw new Error('RapidAPI returned empty data object or stats not found');
+  }
+
+  return { views, likes };
+}
+
 async function scrapeTikTok(url: string) {
   let thumbnailUrl = null;
   let views = 0;
@@ -24,64 +84,20 @@ async function scrapeTikTok(url: string) {
   }
 
   try {
-    const htmlRes = await fetch(url, {
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      }
-    });
-    const finalUrl = htmlRes.url;
-    const videoIdMatch = finalUrl.match(/\/video\/(\d+)/);
-    const videoId = videoIdMatch ? videoIdMatch[1] : null;
-
-    const html = await htmlRes.text();
-    const $ = cheerio.load(html);
-
-    // TikTok stores data in a script tag '__UNIVERSAL_DATA_FOR_REHYDRATION__'
-    const scriptContent = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html();
-    if (scriptContent) {
-      try {
-        const jsonData = JSON.parse(scriptContent);
-        
-        // First try to find it directly in ItemModule if videoId exists
-        if (videoId && jsonData?.ItemModule?.[videoId]?.stats) {
-          const stats = jsonData.ItemModule[videoId].stats;
-          if (stats.playCount !== undefined) views = parseInt(stats.playCount);
-          if (stats.diggCount !== undefined) likes = parseInt(stats.diggCount);
-        } else {
-          // Fallback recursive search
-          const searchForStats = (obj: any) => {
-            if (!obj || typeof obj !== 'object') return;
-            
-            // If we have a videoId, only match the object for that video
-            if (videoId) {
-              if (obj.id === videoId && obj.stats) {
-                if (obj.stats.playCount !== undefined) views = parseInt(obj.stats.playCount);
-                if (obj.stats.diggCount !== undefined) likes = parseInt(obj.stats.diggCount);
-                return;
-              }
-            } else {
-              // Old behavior: grab first stats found (risky if multiple videos)
-              if (obj.playCount !== undefined) views = parseInt(obj.playCount);
-              if (obj.diggCount !== undefined) likes = parseInt(obj.diggCount);
-            }
-            
-            if (views > 0 && likes > 0) return;
-            for (const key of Object.keys(obj)) {
-              searchForStats(obj[key]);
-            }
-          };
-          searchForStats(jsonData);
-        }
-      } catch (e) {}
-    } else {
-      const viewsText = $('strong[data-e2e="video-views"]').text();
-      const likesText = $('strong[data-e2e="like-count"]').text();
-      if (viewsText) views = parseKMB(viewsText);
-      if (likesText) likes = parseKMB(likesText);
+    // 2. Primary attempt: TikWM
+    const tikwmStats = await fetchFromTikWM(url);
+    views = tikwmStats.views;
+    likes = tikwmStats.likes;
+  } catch (tikwmError) {
+    console.warn('TikWM primary scraper failed:', tikwmError);
+    // 3. Fallback attempt: RapidAPI
+    try {
+      const rapidStats = await fetchFromRapidAPI(url);
+      views = rapidStats.views;
+      likes = rapidStats.likes;
+    } catch (rapidError) {
+      console.warn('RapidAPI fallback scraper failed:', rapidError);
     }
-  } catch (e) {
-    console.warn('TikTok HTML scrape error', e);
   }
 
   return { thumbnailUrl, views, likes, accountUsername };
