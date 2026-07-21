@@ -174,7 +174,7 @@ export default function AccountContentGridPage() {
           
           <div className="w-16 h-16 rounded-full bg-white/10 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
             {accountDoc?.profilePictureUrl ? (
-              <img src={accountDoc.profilePictureUrl} alt={username} className="w-full h-full object-cover" />
+              <img src={`/api/image-proxy?url=${encodeURIComponent(accountDoc.profilePictureUrl)}`} alt={username} className="w-full h-full object-cover" />
             ) : (
               <span className="text-2xl font-bold text-white/50">{username.charAt(username.startsWith('@') ? 1 : 0).toUpperCase()}</span>
             )}
@@ -241,7 +241,7 @@ export default function AccountContentGridPage() {
               className={`relative aspect-[9/16] bg-white/5 rounded overflow-hidden group cursor-pointer border transition-colors select-none ${isSelected ? 'border-blue-500 scale-[0.97] opacity-100' : 'border-white/5 hover:border-white/20'}`}
             >
               {video.thumbnailUrl ? (
-                <img src={video.thumbnailUrl} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500" draggable={false} />
+                <img src={`/api/image-proxy?url=${encodeURIComponent(video.thumbnailUrl)}`} alt="Thumbnail" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500" draggable={false} />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs bg-white/5 uppercase font-medium">
                   {video.platform}
