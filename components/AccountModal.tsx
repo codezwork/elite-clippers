@@ -9,8 +9,15 @@ export default function AccountModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [canInstall, setCanInstall] = useState(false);
 
   useEffect(() => {
-    // Check if the prompt is ready
+    // Check if the prompt is ready (Android/Chrome)
     if (window.deferredPrompt) {
+      setCanInstall(true);
+    }
+    
+    // Check if it's iOS Safari (which doesn't support deferredPrompt)
+    const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+    const isStandalone = ('standalone' in window.navigator) && (window.navigator as any).standalone;
+    if (isIos && !isStandalone) {
       setCanInstall(true);
     }
     
@@ -23,6 +30,13 @@ export default function AccountModal({ isOpen, onClose }: { isOpen: boolean; onC
   if (!isOpen || !user) return null;
 
   const handleInstallClick = async () => {
+    const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+    
+    if (isIos) {
+      alert("To install Elite Clipper on iOS: Tap the 'Share' icon at the bottom of Safari and select 'Add to Home Screen'.");
+      return;
+    }
+
     if (!window.deferredPrompt) return;
     
     // Show the install prompt

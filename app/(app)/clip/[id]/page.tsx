@@ -120,7 +120,7 @@ export default function ClipDetailPage() {
 
       <div className="bg-black/40 border border-white/5 rounded-2xl p-4 mb-6 flex gap-4 overflow-hidden shadow-lg">
         {clip.thumbnailUrl ? (
-          <img src={clip.thumbnailUrl} alt="Thumbnail" className="w-24 h-32 object-cover rounded-xl bg-white/5" />
+          <img src={`/api/image-proxy?url=${encodeURIComponent(clip.thumbnailUrl)}`} alt="Thumbnail" className="w-24 h-32 object-cover rounded-xl bg-white/5" />
         ) : (
           <div className="w-24 h-32 bg-white/5 rounded-xl flex items-center justify-center">
             <span className="text-xs text-white/40 uppercase font-bold tracking-widest">{clip.platform}</span>
