@@ -78,24 +78,59 @@ export async function POST(req: NextRequest) {
     } catch (tikwmError) {
       console.warn('Tikwm user/posts fetch failed:', tikwmError);
       
-      // Fallback to Apify
+      // Fallback to Apify with Token Rotation
       try {
-        const apifyRes = await fetch(
-          `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              profiles: [username],
-              resultsPerPage: 30
-            })
-          }
-        );
+        // Read multiple tokens separated by commas, or fallback to single token
+        const tokensString = process.env.APIFY_API_TOKENS || process.env.APIFY_API_TOKEN || '';
+        const apifyTokens = tokensString.split(',').map(t => t.trim()).filter(Boolean);
+        
+        if (apifyTokens.length === 0) {
+          throw new Error('No Apify tokens configured');
+        }
 
-        if (!apifyRes.ok) throw new Error(`Apify returned ${apifyRes.status}`);
-        const apifyData = await apifyRes.json();
+        let apifyData = null;
+        let lastError = null;
+
+        for (const token of apifyTokens) {
+          try {
+            const apifyRes = await fetch(
+              `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${token}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  profiles: [username],
+                  resultsPerPage: 30
+                })
+              }
+            );
+
+            // 402 Payment Required or 403 Forbidden usually means quota is exhausted
+            if (apifyRes.status === 402 || apifyRes.status === 403 || apifyRes.status === 429) {
+              console.warn(`Apify token ${token.substring(0, 5)}... exhausted/rate-limited with status ${apifyRes.status}. Trying next...`);
+              lastError = new Error(`Apify quota exhausted (HTTP ${apifyRes.status})`);
+              continue;
+            }
+
+            if (!apifyRes.ok) {
+              throw new Error(`Apify returned ${apifyRes.status}`);
+            }
+            
+            apifyData = await apifyRes.json();
+            break; // Success! Break out of the loop
+          } catch (err) {
+            console.error(`Apify fetch failed for token ${token.substring(0, 5)}...`, err);
+            lastError = err;
+            // Loop continues to next token
+          }
+        }
+
+        if (!apifyData) {
+          throw lastError || new Error('All Apify tokens failed');
+        }
+        
         if (!Array.isArray(apifyData)) throw new Error('Apify response is not an array');
         
         // Map clockworks/tiktok-scraper response
@@ -189,18 +224,6 @@ export async function POST(req: NextRequest) {
     });
 
     await batch.commit();
-
-    // 4. Fire refresh for each new video to get accurate stats
-    for (const docId of newDocIds) {
-      fetch(`${origin}/api/clips/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ clipId: docId }),
-      }).catch(() => { }); // intentional fire-and-forget
-    }
 
     return NextResponse.json({ newCount: newVideos.length });
 
