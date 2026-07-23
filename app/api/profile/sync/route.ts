@@ -31,8 +31,10 @@ export async function POST(req: NextRequest) {
     // Tikwm usually expects username without @ or properly encoded
     const tikwmUsername = username.slice(1);
 
-    // 1. Fetch video list from Tikwm public API (Primary) or RapidAPI (Fallback)
+    // 1. Fetch video list from Tikwm public API (Primary) or Apify (Fallback)
     let videoList: any[] = [];
+    let profilePictureUrl = null;
+    
     try {
       const tikwmRes = await fetch(
         `https://www.tikwm.com/api/user/posts?unique_id=${tikwmUsername}&count=30&cursor=0`,
@@ -56,45 +58,7 @@ export async function POST(req: NextRequest) {
         link: `https://www.tiktok.com/${username}/video/${v.video_id}`,
       }));
 
-    } catch (tikwmError) {
-      console.warn('Tikwm user/posts fetch failed:', tikwmError);
-      
-      // Fallback to RapidAPI
-      try {
-        const rapidRes = await fetch(
-          `https://tiktok-video-no-watermark2.p.rapidapi.com/user/posts?unique_id=${tikwmUsername}&count=30`,
-          {
-            headers: {
-              'x-rapidapi-key': process.env.RAPIDAPI_KEY || '6c57a260d4mshaea891895b41d1ep188775jsnc7d9a2a37ec0',
-              'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        if (!rapidRes.ok) throw new Error('RapidAPI returned non-200 status');
-        const rapidData = await rapidRes.json();
-        if (rapidData.code !== 0 || !rapidData.data?.videos) throw new Error('RapidAPI response did not contain video data');
-
-        videoList = rapidData.data.videos.map((v: any) => ({
-          videoId: String(v.video_id),
-          thumbnailUrl: v.cover || '',
-          views: v.play_count || 0,
-          likes: v.digg_count || 0,
-          link: `https://www.tiktok.com/${username}/video/${v.video_id}`,
-        }));
-
-      } catch (rapidError) {
-        console.error('RapidAPI user/posts fetch failed:', rapidError);
-        return NextResponse.json(
-          { error: 'SYNC_UNAVAILABLE' },
-          { status: 503 }
-        );
-      }
-    }
-
-    let profilePictureUrl = null;
-    try {
+      // Also try fetching profile picture from TikWM if primary succeeds
       const userInfoRes = await fetch(
         `https://www.tikwm.com/api/user/info?unique_id=${tikwmUsername}`,
         {
@@ -104,34 +68,56 @@ export async function POST(req: NextRequest) {
           },
         }
       );
-      if (!userInfoRes.ok) throw new Error('TikWM info non-200');
-      const userInfoData = await userInfoRes.json();
-      if (userInfoData.code === 0 && userInfoData.data?.user?.avatarMedium) {
-        profilePictureUrl = userInfoData.data.user.avatarMedium;
-      } else {
-         throw new Error('TikWM info invalid');
+      if (userInfoRes.ok) {
+        const userInfoData = await userInfoRes.json();
+        if (userInfoData.code === 0 && userInfoData.data?.user?.avatarMedium) {
+          profilePictureUrl = userInfoData.data.user.avatarMedium;
+        }
       }
-    } catch (tikwmInfoError) {
-      console.warn('TikWM user/info fetch failed:', tikwmInfoError);
+
+    } catch (tikwmError) {
+      console.warn('Tikwm user/posts fetch failed:', tikwmError);
+      
+      // Fallback to Apify
       try {
-        const rapidInfoRes = await fetch(
-          `https://tiktok-video-no-watermark2.p.rapidapi.com/user/info?unique_id=${tikwmUsername}`,
+        const apifyRes = await fetch(
+          `https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`,
           {
+            method: 'POST',
             headers: {
-              'x-rapidapi-key': process.env.RAPIDAPI_KEY || '6c57a260d4mshaea891895b41d1ep188775jsnc7d9a2a37ec0',
-              'x-rapidapi-host': 'tiktok-video-no-watermark2.p.rapidapi.com',
               'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({
+              profiles: [username],
+              resultsPerPage: 30
+            })
           }
         );
-        if (rapidInfoRes.ok) {
-          const rapidInfoData = await rapidInfoRes.json();
-          if (rapidInfoData.code === 0 && rapidInfoData.data?.user?.avatarMedium) {
-            profilePictureUrl = rapidInfoData.data.user.avatarMedium;
-          }
+
+        if (!apifyRes.ok) throw new Error(`Apify returned ${apifyRes.status}`);
+        const apifyData = await apifyRes.json();
+        if (!Array.isArray(apifyData)) throw new Error('Apify response is not an array');
+        
+        // Map clockworks/tiktok-scraper response
+        videoList = apifyData.filter((v: any) => v.id).map((v: any) => ({
+          videoId: String(v.id),
+          thumbnailUrl: v.videoMeta?.coverUrl || v.videoMeta?.originalCoverUrl || '',
+          views: v.playCount || 0,
+          likes: v.diggCount || 0,
+          link: v.webVideoUrl || `https://www.tiktok.com/${username}/video/${v.id}`,
+        }));
+        
+        // Extract profile picture from the authorMeta of the first video
+        if (apifyData.length > 0 && apifyData[0].authorMeta?.avatar) {
+          profilePictureUrl = apifyData[0].authorMeta.avatar;
         }
-      } catch (rapidInfoError) {
-        console.error('RapidAPI user/info fetch failed:', rapidInfoError);
+        
+      } catch (apifyError) {
+        console.error('Apify fallback failed:', apifyError);
+        return NextResponse.json(
+          { error: 'All scraping services are currently unavailable.' },
+          { status: 500 }
+        );
       }
     }
 
@@ -159,18 +145,28 @@ export async function POST(req: NextRequest) {
       .where('accountUsername', '==', username)
       .get();
 
-    const existingIds = new Set(
-      existingSnap.docs.map(d => d.data().videoId)
-    );
+    const existingVideoDocs = new Map();
+    existingSnap.docs.forEach(d => {
+      existingVideoDocs.set(d.data().videoId, d);
+    });
 
-    const newVideos = videoList.filter(v => !existingIds.has(v.videoId));
+    const newVideos = videoList.filter(v => !existingVideoDocs.has(v.videoId));
+    const existingVideosToUpdate = videoList.filter(v => existingVideoDocs.has(v.videoId));
 
-    if (newVideos.length === 0) {
-      return NextResponse.json({ newCount: 0, message: 'All clips already synced' });
-    }
-
-    // 3. Batch write new videos to Firestore
     const batch = adminDb.batch();
+
+    existingVideosToUpdate.forEach(video => {
+      const doc = existingVideoDocs.get(video.videoId);
+      if (doc) {
+        batch.update(doc.ref, {
+          thumbnailUrl: video.thumbnailUrl || doc.data().thumbnailUrl || '',
+          views: video.views || doc.data().views || 0,
+          likes: video.likes || doc.data().likes || 0,
+          lastUpdated: new Date()
+        });
+      }
+    });
+
     const newDocIds: string[] = [];
     const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -198,12 +194,12 @@ export async function POST(req: NextRequest) {
     for (const docId of newDocIds) {
       fetch(`${origin}/api/clips/refresh`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}` 
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({ clipId: docId }),
-      }).catch(() => {}); // intentional fire-and-forget
+      }).catch(() => { }); // intentional fire-and-forget
     }
 
     return NextResponse.json({ newCount: newVideos.length });

@@ -94,8 +94,8 @@ export default function AccountContentGridPage() {
       
       const data = await res.json();
       if (res.ok) {
-        setToastMessage(data.newCount > 0 ? `${data.newCount} new clips added` : 'Already up to date');
-        if (data.newCount > 0) fetchVideos();
+        setToastMessage(data.newCount > 0 ? `${data.newCount} new clips added` : 'Up to date. Thumbnails refreshed.');
+        fetchVideos();
       } else if (data.error === 'SYNC_UNAVAILABLE') {
         setToastMessage('Account sync is temporarily unavailable. You can still add videos individually.');
       } else {
