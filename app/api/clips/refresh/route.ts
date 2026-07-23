@@ -267,8 +267,8 @@ export async function POST(req: Request) {
       const data = await scrapeTikTok(url);
       if (data.views > 0) updates.views = data.views;
       if (data.likes > 0) updates.likes = data.likes;
-      if (data.thumbnailUrl && !clipData.thumbnailUrl) updates.thumbnailUrl = data.thumbnailUrl;
-      if (data.accountUsername && clipData.accountUsername === 'unknown') updates.accountUsername = data.accountUsername;
+      if (data.thumbnailUrl) updates.thumbnailUrl = data.thumbnailUrl;
+      if (data.accountUsername) updates.accountUsername = data.accountUsername;
     } else if (platform === 'youtube') {
       const data = await scrapeYouTube(url);
       if (data.views > 0) updates.views = data.views;
@@ -277,8 +277,8 @@ export async function POST(req: Request) {
       const data = await scrapeInstagram(url);
       if (data.views > 0) updates.views = data.views;
       if (data.likes > 0) updates.likes = data.likes;
-      if (data.thumbnailUrl && !clipData.thumbnailUrl) updates.thumbnailUrl = data.thumbnailUrl;
-      if (data.accountUsername && clipData.accountUsername === 'unknown') updates.accountUsername = data.accountUsername;
+      if (data.thumbnailUrl) updates.thumbnailUrl = data.thumbnailUrl;
+      if (data.accountUsername) updates.accountUsername = data.accountUsername;
     }
 
     await clipRef.update(updates);
