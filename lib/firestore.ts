@@ -57,14 +57,14 @@ export async function deleteVideos(uid: string, clipIds: string[]) {
   const batch = writeBatch(db);
   for (const clipId of clipIds) {
     const videoRef = doc(db, 'users', uid, 'videos', clipId);
-    
+
     // Fetch orders to delete them
     const ordersRef = collection(db, 'users', uid, 'videos', clipId, 'orders');
     const ordersSnap = await getDocs(ordersRef);
     ordersSnap.forEach((orderDoc) => {
       batch.delete(orderDoc.ref);
     });
-    
+
     // Delete the video itself
     batch.delete(videoRef);
   }
@@ -111,8 +111,8 @@ export async function getAccount(uid: string, platform: string, username: string
 
 export async function updateVideoCampaignEndDate(uid: string, clipId: string, campaignEndDate: Date | null) {
   const videoRef = doc(db, 'users', uid, 'videos', clipId);
-  await setDoc(videoRef, { 
-    campaignEndDate: campaignEndDate ? Timestamp.fromDate(campaignEndDate) : null 
+  await setDoc(videoRef, {
+    campaignEndDate: campaignEndDate ? Timestamp.fromDate(campaignEndDate) : null
   }, { merge: true });
 }
 
