@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // 1. Fetch video list from Tikwm public API (Primary) or Apify (Fallback)
     let videoList: any[] = [];
     let profilePictureUrl = null;
-    
+
     try {
       const tikwmRes = await fetch(
         `https://www.tikwm.com/api/user/posts?unique_id=${tikwmUsername}&count=30&cursor=0`,
@@ -50,13 +50,17 @@ export async function POST(req: NextRequest) {
       const tikwmData = await tikwmRes.json();
       if (tikwmData.code !== 0 || !tikwmData.data?.videos) throw new Error('Tikwm response did not contain video data');
 
-      videoList = tikwmData.data.videos.map((v: any) => ({
-        videoId: String(v.video_id),
-        thumbnailUrl: v.cover || '',
-        views: v.play_count || 0,
-        likes: v.digg_count || 0,
-        link: `https://www.tiktok.com/${username}/video/${v.video_id}`,
-      }));
+      videoList = tikwmData.data.videos.map((v: any) => {
+        let trueId = String(v.video_id);
+        const link = `https://www.tiktok.com/${username}/video/${trueId}`;
+        return {
+          videoId: trueId,
+          thumbnailUrl: v.cover || '',
+          views: v.play_count || 0,
+          likes: v.digg_count || 0,
+          link,
+        };
+      });
 
       // Also try fetching profile picture from TikWM if primary succeeds
       const userInfoRes = await fetch(
@@ -77,13 +81,13 @@ export async function POST(req: NextRequest) {
 
     } catch (tikwmError) {
       console.warn('Tikwm user/posts fetch failed:', tikwmError);
-      
+
       // Fallback to Apify with Token Rotation
       try {
         // Read multiple tokens separated by commas, or fallback to single token
         const tokensString = process.env.APIFY_API_TOKENS || process.env.APIFY_API_TOKEN || '';
         const apifyTokens = tokensString.split(',').map(t => t.trim()).filter(Boolean);
-        
+
         if (apifyTokens.length === 0) {
           throw new Error('No Apify tokens configured');
         }
@@ -117,7 +121,7 @@ export async function POST(req: NextRequest) {
             if (!apifyRes.ok) {
               throw new Error(`Apify returned ${apifyRes.status}`);
             }
-            
+
             apifyData = await apifyRes.json();
             break; // Success! Break out of the loop
           } catch (err) {
@@ -130,23 +134,31 @@ export async function POST(req: NextRequest) {
         if (!apifyData) {
           throw lastError || new Error('All Apify tokens failed');
         }
-        
+
         if (!Array.isArray(apifyData)) throw new Error('Apify response is not an array');
-        
+
         // Map clockworks/tiktok-scraper response
-        videoList = apifyData.filter((v: any) => v.id).map((v: any) => ({
-          videoId: String(v.id),
-          thumbnailUrl: v.videoMeta?.coverUrl || v.videoMeta?.originalCoverUrl || '',
-          views: v.playCount || 0,
-          likes: v.diggCount || 0,
-          link: v.webVideoUrl || `https://www.tiktok.com/${username}/video/${v.id}`,
-        }));
-        
+        videoList = apifyData.filter((v: any) => v.id).map((v: any) => {
+          let trueId = String(v.id);
+          const link = v.webVideoUrl || `https://www.tiktok.com/${username}/video/${trueId}`;
+          if (v.webVideoUrl) {
+            const match = v.webVideoUrl.match(/\/video\/(\d+)/);
+            if (match && match[1]) trueId = match[1];
+          }
+          return {
+            videoId: trueId,
+            thumbnailUrl: v.videoMeta?.coverUrl || v.videoMeta?.originalCoverUrl || '',
+            views: v.playCount || 0,
+            likes: v.diggCount || 0,
+            link,
+          };
+        });
+
         // Extract profile picture from the authorMeta of the first video
         if (apifyData.length > 0 && apifyData[0].authorMeta?.avatar) {
           profilePictureUrl = apifyData[0].authorMeta.avatar;
         }
-        
+
       } catch (apifyError) {
         console.error('Apify fallback failed:', apifyError);
         return NextResponse.json(
@@ -184,9 +196,9 @@ export async function POST(req: NextRequest) {
     existingSnap.docs.forEach(d => {
       const data = d.data();
       if (data.videoId) {
-        existingVideoDocs.set(data.videoId, d);
-      } else if (data.link) {
-        // Fallback for manually added clips that didn't have a videoId saved
+        existingVideoDocs.set(String(data.videoId), d);
+      }
+      if (data.link) {
         const match = data.link.match(/\/video\/(\d+)/);
         if (match && match[1]) {
           existingVideoDocs.set(match[1], d);
@@ -194,13 +206,23 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    const newVideos = videoList.filter(v => !existingVideoDocs.has(v.videoId));
-    const existingVideosToUpdate = videoList.filter(v => existingVideoDocs.has(v.videoId));
+    const isDuplicate = (v: any) => {
+      if (existingVideoDocs.has(String(v.videoId))) return true;
+      if (v.link) {
+        const match = v.link.match(/\/video\/(\d+)/);
+        if (match && match[1] && existingVideoDocs.has(match[1])) return true;
+      }
+      return false;
+    };
+
+    const newVideos = videoList.filter(v => !isDuplicate(v));
+    const existingVideosToUpdate = videoList.filter(v => isDuplicate(v));
 
     const batch = adminDb.batch();
 
     existingVideosToUpdate.forEach(video => {
-      const doc = existingVideoDocs.get(video.videoId);
+      const doc = existingVideoDocs.get(video.videoId) || 
+                  (video.link.match(/\/video\/(\d+)/) ? existingVideoDocs.get(video.link.match(/\/video\/(\d+)/)![1]) : null);
       if (doc) {
         batch.update(doc.ref, {
           thumbnailUrl: video.thumbnailUrl || doc.data().thumbnailUrl || '',

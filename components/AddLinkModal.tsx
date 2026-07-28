@@ -51,7 +51,6 @@ export default function AddLinkModal({ isOpen, onClose }: { isOpen: boolean; onC
         accountUsername: finalUsername,
         link: url,
         thumbnailUrl: parsed.thumbnailUrl || null,
-        videoId: parsed.videoId || undefined,
       });
 
       // Fire and forget the refresh so it populates stats/thumbnail quickly
