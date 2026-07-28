@@ -182,7 +182,16 @@ export async function POST(req: NextRequest) {
 
     const existingVideoDocs = new Map();
     existingSnap.docs.forEach(d => {
-      existingVideoDocs.set(d.data().videoId, d);
+      const data = d.data();
+      if (data.videoId) {
+        existingVideoDocs.set(data.videoId, d);
+      } else if (data.link) {
+        // Fallback for manually added clips that didn't have a videoId saved
+        const match = data.link.match(/\/video\/(\d+)/);
+        if (match && match[1]) {
+          existingVideoDocs.set(match[1], d);
+        }
+      }
     });
 
     const newVideos = videoList.filter(v => !existingVideoDocs.has(v.videoId));

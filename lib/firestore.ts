@@ -3,6 +3,7 @@ import { collection, doc, setDoc, getDocs, getDoc, query, orderBy, Timestamp, wr
 
 export interface VideoDocument {
   id?: string;
+  videoId?: string;
   platform: string;
   accountUsername: string;
   link: string;
