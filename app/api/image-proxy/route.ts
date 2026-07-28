@@ -8,12 +8,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const headers: Record<string, string> = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+    };
+
+    if (url.includes('tiktok.com') || url.includes('tiktokcdn.com')) {
+      headers['Referer'] = 'https://www.tiktok.com/';
+    }
+
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-        'Referer': 'https://www.tiktok.com/'
-      }
+      headers,
+      redirect: 'follow'
     });
 
     if (!response.ok) {

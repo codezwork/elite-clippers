@@ -174,7 +174,21 @@ export default function AccountContentGridPage() {
           
           <div className="w-16 h-16 rounded-full bg-white/10 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
             {accountDoc?.profilePictureUrl ? (
-              <img src={`/api/image-proxy?url=${encodeURIComponent(accountDoc.profilePictureUrl)}`} alt={username} className="w-full h-full object-cover" />
+              <img 
+                src={`/api/image-proxy?url=${encodeURIComponent(accountDoc.profilePictureUrl)}`} 
+                alt={username} 
+                className="w-full h-full object-cover" 
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src.includes('/api/image-proxy')) {
+                    // Fallback to direct URL if proxy fails
+                    target.src = accountDoc.profilePictureUrl!;
+                  } else {
+                    // If direct URL also fails, hide image to show initial
+                    target.style.display = 'none';
+                  }
+                }}
+              />
             ) : (
               <span className="text-2xl font-bold text-white/50">{username.charAt(username.startsWith('@') ? 1 : 0).toUpperCase()}</span>
             )}
@@ -247,6 +261,23 @@ export default function AccountContentGridPage() {
                   {video.platform}
                 </div>
               )}
+              
+              {/* Campaign Indicator */}
+              {video.campaignEndDate && (
+                <div className="absolute top-2 left-2 z-10" title="Campaign active">
+                  {(() => {
+                    const daysRemaining = (video.campaignEndDate.getTime() - Date.now()) / (1000 * 3600 * 24);
+                    let colorClass = "bg-green-500";
+                    if (daysRemaining <= 0) colorClass = "bg-red-500";
+                    else if (daysRemaining <= 3) colorClass = "bg-[#F39C12]";
+                    
+                    return (
+                      <div className={`w-3 h-3 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.5)] border border-white/20 ${colorClass}`}></div>
+                    );
+                  })()}
+                </div>
+              )}
+
               
               {/* Stats overlays */}
               <div className="absolute bottom-1 left-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 border border-white/10">

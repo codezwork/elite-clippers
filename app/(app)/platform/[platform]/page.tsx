@@ -32,7 +32,19 @@ function SortableAccountRow({ account, videos, accountDoc, onClick }: SortableAc
       <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={onClick}>
         <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/5 overflow-hidden group-hover:scale-105 transition-transform shrink-0">
           {accountDoc?.profilePictureUrl ? (
-            <img src={`/api/image-proxy?url=${encodeURIComponent(accountDoc.profilePictureUrl)}`} alt={account} className="w-full h-full object-cover" />
+            <img 
+              src={`/api/image-proxy?url=${encodeURIComponent(accountDoc.profilePictureUrl)}`} 
+              alt={account} 
+              className="w-full h-full object-cover" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src.includes('/api/image-proxy')) {
+                  target.src = accountDoc.profilePictureUrl!;
+                } else {
+                  target.style.display = 'none';
+                }
+              }}
+            />
           ) : (
             <span className="text-xl font-bold text-white/50">{initial}</span>
           )}
