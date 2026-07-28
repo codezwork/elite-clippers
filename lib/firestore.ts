@@ -12,6 +12,7 @@ export interface VideoDocument {
   addedAt: Date;
   lastUpdated: Date;
   cpm?: number;
+  campaignEndDate?: Date;
 }
 
 export interface AccountPreferences {
@@ -48,6 +49,7 @@ export async function getUserVideos(uid: string): Promise<VideoDocument[]> {
     ...doc.data(),
     addedAt: doc.data().addedAt.toDate(),
     lastUpdated: doc.data().lastUpdated.toDate(),
+    campaignEndDate: doc.data().campaignEndDate ? doc.data().campaignEndDate.toDate() : undefined,
   } as VideoDocument));
 }
 
@@ -105,5 +107,12 @@ export async function getAccount(uid: string, platform: string, username: string
     } as AccountDocument;
   }
   return null;
+}
+
+export async function updateVideoCampaignEndDate(uid: string, clipId: string, campaignEndDate: Date | null) {
+  const videoRef = doc(db, 'users', uid, 'videos', clipId);
+  await setDoc(videoRef, { 
+    campaignEndDate: campaignEndDate ? Timestamp.fromDate(campaignEndDate) : null 
+  }, { merge: true });
 }
 

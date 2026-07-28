@@ -1,7 +1,7 @@
 'use client';
 import { useAuth } from '@/lib/auth-context';
 import { useState, useEffect, useCallback } from 'react';
-import { getUserVideos, VideoDocument } from '@/lib/firestore';
+import { getUserVideos, VideoDocument, updateVideoCampaignEndDate } from '@/lib/firestore';
 import { getOrders, OrderDocument } from '@/lib/firestore-orders';
 import { useParams, useRouter } from 'next/navigation';
 import SMMControlPanel from '@/components/SMMControlPanel';
@@ -16,6 +16,40 @@ export default function ClipDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshingOrders, setRefreshingOrders] = useState<Record<string, boolean>>({});
+  const [campaignDays, setCampaignDays] = useState<string>('');
+  const [isSettingCampaign, setIsSettingCampaign] = useState(false);
+
+  const handleSetCampaign = async () => {
+    if (!user || !clip?.id) return;
+    const days = parseInt(campaignDays, 10);
+    if (isNaN(days) || days < 1) return;
+    
+    setIsSettingCampaign(true);
+    try {
+      const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      await updateVideoCampaignEndDate(user.uid, clip.id, endDate);
+      await fetchClipAndOrders();
+      setCampaignDays('');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSettingCampaign(false);
+    }
+  };
+
+  const handleClearCampaign = async () => {
+    if (!user || !clip?.id) return;
+    setIsSettingCampaign(true);
+    try {
+      await updateVideoCampaignEndDate(user.uid, clip.id, null);
+      await fetchClipAndOrders();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSettingCampaign(false);
+    }
+  };
+
 
   const handleRefreshStats = async () => {
     if (!user || !clip?.id) return;
@@ -118,6 +152,15 @@ export default function ClipDetailPage() {
         </button>
       </div>
 
+      <div className="mb-6">
+        <SMMControlPanel 
+          clipId={clip.id!} 
+          platform={clip.platform} 
+          link={clip.link} 
+          onOrderSuccess={fetchClipAndOrders} 
+        />
+      </div>
+
       <div className="bg-black/40 border border-white/5 rounded-2xl p-4 mb-6 flex gap-4 overflow-hidden shadow-lg">
         {clip.thumbnailUrl ? (
           <img src={`/api/image-proxy?url=${encodeURIComponent(clip.thumbnailUrl)}`} alt="Thumbnail" className="w-24 h-32 object-cover rounded-xl bg-white/5" />
@@ -158,12 +201,54 @@ export default function ClipDetailPage() {
         </div>
       </div>
 
-      <SMMControlPanel 
-        clipId={clip.id!} 
-        platform={clip.platform} 
-        link={clip.link} 
-        onOrderSuccess={fetchClipAndOrders} 
-      />
+      <div className="bg-black/30 border border-white/5 rounded-2xl p-5 mb-6">
+        <h3 className="font-semibold text-lg mb-3">Campaign Tracker</h3>
+        {clip.campaignEndDate ? (
+          <div className="flex items-center justify-between bg-white/5 rounded-xl p-4 border border-white/10">
+            <div>
+              <p className="text-sm text-white/70 mb-1">Campaign ends on</p>
+              <p className="font-bold text-white">{clip.campaignEndDate.toLocaleDateString()} {clip.campaignEndDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+              <p className="text-xs mt-1 text-white/50">
+                {(() => {
+                  const daysRemaining = (clip.campaignEndDate.getTime() - Date.now()) / (1000 * 3600 * 24);
+                  if (daysRemaining <= 0) return <span className="text-red-400">Campaign has ended</span>;
+                  if (daysRemaining <= 3) return <span className="text-[#F39C12]">{daysRemaining.toFixed(1)} days remaining</span>;
+                  return <span className="text-green-400">{daysRemaining.toFixed(1)} days remaining</span>;
+                })()}
+              </p>
+            </div>
+            <button 
+              onClick={handleClearCampaign}
+              disabled={isSettingCampaign}
+              className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              Clear
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-white/50 mb-1 pl-1">Duration (Days)</label>
+              <input 
+                type="number" 
+                min="1"
+                value={campaignDays}
+                onChange={e => setCampaignDays(e.target.value)}
+                placeholder="e.g. 7"
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-white/30 transition-colors"
+              />
+            </div>
+            <button 
+              onClick={handleSetCampaign}
+              disabled={!campaignDays || isSettingCampaign}
+              className="px-6 py-3 bg-white text-black hover:bg-white/90 rounded-xl text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              {isSettingCampaign ? 'Saving...' : 'Set'}
+            </button>
+          </div>
+        )}
+      </div>
+
 
       <div>
         <h3 className="font-semibold text-lg mb-4 pl-1">Order History</h3>
