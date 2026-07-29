@@ -77,7 +77,14 @@ async function scrapeTikTok(url: string) {
     if (oembedRes.ok) {
       const data = await oembedRes.json();
       thumbnailUrl = data.thumbnail_url || null;
-      accountUsername = data.author_name || null;
+      if (data.author_unique_id) {
+        accountUsername = `@${data.author_unique_id}`;
+      } else if (data.author_url) {
+        const match = data.author_url.match(/(@[\w.-]+)/);
+        if (match) accountUsername = match[1];
+      } else {
+        accountUsername = data.author_name || null;
+      }
     }
   } catch (e) {
     console.warn('TikTok OEmbed error', e);
@@ -186,12 +193,12 @@ async function scrapeInstagram(url: string) {
 
     const handleMatch = description.match(/\(@([a-zA-Z0-9_.]+)\)/);
     if (handleMatch && handleMatch[1]) {
-      accountUsername = handleMatch[1];
+      accountUsername = `@${handleMatch[1]}`;
     } else {
       const ogTitle = $('meta[property="og:title"]').attr('content') || '';
       const titleMatch = ogTitle.match(/([a-zA-Z0-9_.]+) on Instagram/);
       if (titleMatch && titleMatch[1]) {
-        accountUsername = titleMatch[1];
+        accountUsername = `@${titleMatch[1]}`;
       }
     }
 
