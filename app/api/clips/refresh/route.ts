@@ -7,9 +7,9 @@ async function fetchFromTikWM(url: string) {
   const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' }
   });
-  
+
   if (!res.ok) throw new Error(`TikWM returned ${res.status}`);
-  
+
   const data = await res.json();
   if (data.code !== 0 || !data.data) {
     throw new Error('TikWM returned empty data object');
@@ -33,29 +33,29 @@ async function fetchFromRapidAPI(url: string) {
   if (!res.ok) throw new Error(`RapidAPI returned ${res.status}`);
 
   const data = await res.json();
-  
+
   let views = 0;
   let likes = 0;
 
   const searchForStats = (obj: any) => {
     if (!obj || typeof obj !== 'object') return;
-    
+
     if (obj.play_count !== undefined) views = typeof obj.play_count === 'string' ? parseKMB(obj.play_count) : obj.play_count;
     else if (obj.playCount !== undefined) views = typeof obj.playCount === 'string' ? parseKMB(obj.playCount) : obj.playCount;
-    
+
     if (obj.digg_count !== undefined) likes = typeof obj.digg_count === 'string' ? parseKMB(obj.digg_count) : obj.digg_count;
     else if (obj.diggCount !== undefined) likes = typeof obj.diggCount === 'string' ? parseKMB(obj.diggCount) : obj.diggCount;
     else if (obj.like_count !== undefined) likes = typeof obj.like_count === 'string' ? parseKMB(obj.like_count) : obj.like_count;
 
     if (views > 0 && likes > 0) return;
-    
+
     for (const key of Object.keys(obj)) {
       searchForStats(obj[key]);
     }
   };
-  
+
   searchForStats(data);
-  
+
   if (views === 0 && likes === 0) {
     throw new Error('RapidAPI returned empty data object or stats not found');
   }
@@ -116,7 +116,7 @@ async function scrapeYouTube(url: string) {
 
   try {
     const htmlRes = await fetch(url, {
-      headers: { 
+      headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
       }
@@ -156,7 +156,7 @@ async function scrapeYouTube(url: string) {
             }
           };
           searchForLikes(data);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
   } catch (e) {
@@ -174,7 +174,7 @@ async function scrapeInstagram(url: string) {
 
   try {
     const htmlRes = await fetch(url, {
-      headers: { 
+      headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
       }
@@ -183,9 +183,9 @@ async function scrapeInstagram(url: string) {
     const $ = cheerio.load(html);
 
     thumbnailUrl = $('meta[property="og:image"]').attr('content') || null;
-    
+
     const description = $('meta[property="og:description"]').attr('content') || '';
-    
+
     const likesMatch = description.match(/([\d,KMBkmb.]+)\s*Likes/i);
     if (likesMatch && likesMatch[1]) {
       likes = parseKMB(likesMatch[1]);
@@ -206,7 +206,7 @@ async function scrapeInstagram(url: string) {
     if (viewsMatch && viewsMatch[1]) {
       views = parseKMB(viewsMatch[1]);
     } else if (likes > 0 && views === 0) {
-      views = likes * 5; 
+      views = likes * 5;
     }
   } catch (e) {
     console.warn('Instagram HTML scrape error', e);
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
 
     const clipRef = adminDb.collection('users').doc(uid).collection('videos').doc(clipId);
     const clipSnap = await clipRef.get();
-    
+
     if (!clipSnap.exists) {
       return NextResponse.json({ error: 'Clip not found' }, { status: 404 });
     }

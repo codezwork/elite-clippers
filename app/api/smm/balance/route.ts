@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     });
 
     const data = await smmRes.json();
-    
+
     if (data.error) {
       return NextResponse.json({ error: data.error }, { status: 400 });
     }
